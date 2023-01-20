@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
+from dataset import FocalLengthDataset
+
 # source: https://www.kaggle.com/code/ivankunyankin/resnet18-from-scratch-using-pytorch/notebook
 
 import torch
@@ -19,96 +21,96 @@ from resnet18 import ResNet_18
 torch.manual_seed(17)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+batch_size = 1
+
 ######################################################################
 # Gather data
 ######################################################################
 
-data_path = "./data"
+# data_path = "./data"
 
-train = pd.read_csv(data_path + "/train.csv",dtype = np.float32)
-test = pd.read_csv(data_path + "/test.csv",dtype = np.float32)
-submission = pd.read_csv(data_path + "/sample_submission.csv")
-print("Train set shape:", train.shape)
-print("Test set shape:", test.shape)
+# train = pd.read_csv(data_path + "/train.csv",dtype = np.float32)
+# test = pd.read_csv(data_path + "/test.csv",dtype = np.float32)
+# submission = pd.read_csv(data_path + "/sample_submission.csv")
+# print("Train set shape:", train.shape)
+# print("Test set shape:", test.shape)
 ## ~ 4000 training samples for each digit
 
 ######################################################################
 # Prepare data - Pandas Dataframe makes this easy
 ######################################################################
 
-labels = train.label.values
-data = train.iloc[:, 1:].values / 255 # Normalization
-print("Labels shape: ", labels.shape)
-print("Dataset shape: ", data.shape)
+# labels = train.label.values
+# data = train.iloc[:, 1:].values / 255 # Normalization
+# print("Labels shape: ", labels.shape)
+# print("Dataset shape: ", data.shape)
 
-labels = torch.from_numpy(labels).type(torch.LongTensor)
-data = torch.from_numpy(data).view(data.shape[0], 1, 28, 28)
+# labels = torch.from_numpy(labels).type(torch.LongTensor)
+# data = torch.from_numpy(data).view(data.shape[0], 1, 28, 28)
 
-train_data, val_data, train_labels, val_labels = train_test_split(data, labels, test_size = 0.2, random_state = 42)
+# train_data, val_data, train_labels, val_labels = train_test_split(data, labels, test_size = 0.2, random_state = 42)
 
 
 ######################################################################
 # CustomDataset - because we need to apply transformations
 ######################################################################
-class CustomTensorDataset(Dataset):
+# class CustomTensorDataset(Dataset):
 
-    def __init__(self, data, labels=None, transform=None):
-        self.data = data
-        self.labels = labels
-        self.transform = transform
+#     def __init__(self, data, labels=None, transform=None):
+#         self.data = data
+#         self.labels = labels
+#         self.transform = transform
 
-    def __getitem__(self, index):
-        x = self.data[index]
+#     def __getitem__(self, index):
+#         x = self.data[index]
 
-        if self.transform is not None:
-            x = self.transform(x)
-        if self.labels is not None:
-            y = self.labels[index]
-            return x, y
-        else:
-            return x
+#         if self.transform is not None:
+#             x = self.transform(x)
+#         if self.labels is not None:
+#             y = self.labels[index]
+#             return x, y
+#         else:
+#             return x
 
-    def __len__(self):
-        return self.data.size(0)
+#     def __len__(self):
+#         return self.data.size(0)
 
-transform = transforms.Compose([
-    transforms.ToPILImage(),
-    # rotate and scale while keeping parallel relationships
-    transforms.RandomAffine(degrees=20, scale=(1.1, 1.1)),
-    # crop back to expected size
-    transforms.RandomCrop((28, 28), padding=2, pad_if_needed=True, fill=0, padding_mode='constant'),
-    transforms.ToTensor()
-])
+# transform = transforms.Compose([
+#     transforms.ToPILImage(),
+#     # rotate and scale while keeping parallel relationships
+#     transforms.RandomAffine(degrees=20, scale=(1.1, 1.1)),
+#     # crop back to expected size
+#     transforms.RandomCrop((28, 28), padding=2, pad_if_needed=True, fill=0, padding_mode='constant'),
+#     transforms.ToTensor()
+# ])
 
 
 ######################################################################
 # DataLoader (and apply transforms to original set)
 ######################################################################
-trainset = ConcatDataset([
-    CustomTensorDataset(train_data, train_labels),
-    CustomTensorDataset(train_data, train_labels, transform=transform)
-])
-valset = CustomTensorDataset(val_data, val_labels)
+# trainset = ConcatDataset([
+#     CustomTensorDataset(train_data, train_labels),
+#     CustomTensorDataset(train_data, train_labels, transform=transform)
+# ])
+# valset = CustomTensorDataset(val_data, val_labels)
 
-train_loader = DataLoader(trainset, batch_size=32, shuffle=True)
-val_loader = DataLoader(valset, batch_size=32, shuffle=False)
+fd_train = FocalLengthDataset(data_dir="./data")
+fd_val = FocalLengthDataset(data_dir="./data")
 
-model = ResNet_18(1, 10)
+train_loader = DataLoader(fd_train, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(fd_val, batch_size=batch_size, shuffle=False)
 
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-print(str(count_parameters(model)) + " parameters")
+model = ResNet_18(3, 1)
 
 model.to(device)
 next(model.parameters()).is_cuda
 
-######################################################################
-# TrainingLoop
-######################################################################
+# ######################################################################
+# # TrainingLoop
+# ######################################################################
 
 epochs = 5
-criterion = nn.CrossEntropyLoss()
+criterion = nn.L1Loss()
 optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)
 lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
 

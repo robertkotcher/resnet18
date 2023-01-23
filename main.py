@@ -1,6 +1,7 @@
 import time
 import copy
 import numpy as np
+import wandb
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -21,7 +22,7 @@ from resnet18 import ResNet_18
 torch.manual_seed(17)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-batch_size = 1
+batch_size = 100
 
 ######################################################################
 # Gather data
@@ -94,8 +95,8 @@ batch_size = 1
 # ])
 # valset = CustomTensorDataset(val_data, val_labels)
 
-fd_train = FocalLengthDataset(data_dir="./data")
-fd_val = FocalLengthDataset(data_dir="./data")
+fd_train = FocalLengthDataset(data_dir="./focal-length-2000")
+fd_val = FocalLengthDataset(data_dir="./focal-length-2000")
 
 train_loader = DataLoader(fd_train, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(fd_val, batch_size=batch_size, shuffle=False)
@@ -147,6 +148,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=50, is_ince
                     
                     outputs = model(inputs)
                     loss = criterion(outputs, labels)
+                    wandb.log({"loss": loss})
                     _, preds = torch.max(outputs, 1)
 
                     if phase == 'train': # Backward + optimize only if in training phase
@@ -183,4 +185,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=50, is_ince
     model.load_state_dict(best_model_wts)
     return model, val_acc_history
 
-model, _ = train_model(model, {"train": train_loader, "val": val_loader}, criterion, optimizer, epochs)
+if __name__ == "__main__":
+    wandb.init(project="focal-length-est", entity="wheresmycookie")
+
+    model, _ = train_model(model, {"train": train_loader, "val": val_loader}, criterion, optimizer, epochs)

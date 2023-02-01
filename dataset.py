@@ -6,24 +6,14 @@ import os
 import json
 import torch
 
-# For classification, labels and data _had_ the following properties:
-# 
-# Labels shape:  torch.Size([batch_size])
-# Dataset shape:  torch.Size([batch_size, 1, 28, 28])
-# 
-# Labels dtype:  torch.int64
-# Dataset dtype:  torch.float32
-# 
-# ---
-# 
-# Now:
-# 
-# img: torch.Size([3, 1024, 1024])
-#       dtype=torch.float32
-# 
-# label:
+#
+# FocalLengthDataset
+#
+# loads a dataset from data_dir - expects to have a .png and .info in the format output
+# from SAI's humans pipeline
+#
 class FocalLengthDataset(Dataset):
-    def __init__(self, data_dir, transform=None):
+    def __init__(self, data_dir, factor=None):
         self.data_dir = data_dir
         count = 0
         for path in os.listdir(data_dir):
@@ -31,6 +21,7 @@ class FocalLengthDataset(Dataset):
             if os.path.isfile(p) and path[0] != ".":
                 count += 1
         self.count = int(count / 2)
+        self.factor = factor
 
     def __len__(self):
         return self.count
@@ -45,4 +36,14 @@ class FocalLengthDataset(Dataset):
         with open(os.path.join(self.data_dir, f"{idx}.cam_default.f_1.info.json")) as f:
             j = json.loads(f.read())
             focal_length_mm = j["camera"]["focal_length_mm"]
-            return img_tensor, torch.tensor(focal_length_mm)
+
+            if self.factor != None:
+                t = transforms.Compose([
+                    # img_tensor.shape = [C, W, H]
+                    transforms.RandomCrop((img_tensor.shape[1] // self.factor, img_tensor.shape[2] // self.factor)),
+                    transforms.Resize(size=img_size)
+                ])
+                return t(img_tensor), torch.tensor(focal_length_mm * self.factor)
+            else:
+                return img_tensor, torch.tensor(focal_length_mm)
+
